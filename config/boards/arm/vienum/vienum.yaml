@@ -1,0 +1,22 @@
+identifier: vienum
+name: VieNum
+type: keyboard
+arch: arm
+toolchain:
+  - zephyr
+  - gnuarmemb
+  - xtools
+exposes:
+  - i2c_oled
+supported:
+  - adc
+  - usb_device
+  - ble
+  - ieee802154
+  - pwm
+  - watchdog
+features:
+  - keys
+  - display
+  - underglow
+  - encoder

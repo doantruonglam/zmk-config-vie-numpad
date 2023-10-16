@@ -1,0 +1,199 @@
+/*
+ * Copyright (c) 2021 Nick Winans
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
+/dts-v1/;
+#include <nordic/nrf52840_qiaa.dtsi>
+#include <dt-bindings/zmk/matrix_transform.h>
+#include <dt-bindings/led/led.h>
+
+/ {
+	model = "VieNum_B";
+	compatible = "vienum,b";
+
+	chosen {
+        zephyr,display = &oled;
+		zephyr,code-partition = &code_partition;
+		zephyr,sram = &sram0;
+		zephyr,flash = &flash0;
+		zmk,kscan = &kscan0;
+		zmk,matrix_transform = &default_transform;
+        zmk,underglow = &led_strip;
+		zephyr,console = &cdc_acm_uart;
+		zmk,battery = &vbatt;
+	};
+
+	default_transform: keymap_transform_0 {
+		compatible = "zmk,matrix-transform";
+		columns = <12>;
+		rows = <4>;
+        map = <
+            RC(0,0) RC(0,1) RC(0,2) RC(0,3)
+            RC(1,0) RC(1,1) RC(1,2) 
+            RC(2,0) RC(2,1) RC(2,2) RC(2,3)
+            RC(3,0) RC(3,1) RC(3,2)
+            RC(4,0) RC(4,1) RC(4,2) RC(4,3)
+        >;
+    };
+
+	kscan0: kscan {
+		compatible = "zmk,kscan-gpio-matrix";
+		label = "KSCAN";
+
+		diode-direction = "col2row";
+		row-gpios
+			= <&gpio0 24  (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)> // row 0
+			, <&gpio1 0   (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)> // row 1
+			, <&gpio0 11  (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)> // row 2
+			, <&gpio1 4   (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)> // row 3
+			, <&gpio1 6   (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)> // row 4
+			;
+		col-gpios
+			= <&gpio1 13  GPIO_ACTIVE_HIGH> // col 0
+			, <&gpio1 11  GPIO_ACTIVE_HIGH> // col 1
+			, <&gpio0 10  GPIO_ACTIVE_HIGH> // col 2
+			, <&gpio0 9   GPIO_ACTIVE_HIGH> // col 3
+			;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+		blue_led: led_0 {
+			gpios = <&gpio0 15 GPIO_ACTIVE_HIGH>;
+			label = "Blue LED";
+		};
+	};
+
+	ext-power {
+		compatible = "zmk,ext-power-generic";
+		label = "EXT_POWER";
+		control-gpios = <&gpio0 13 GPIO_ACTIVE_HIGH>;
+	};
+
+	vbatt: vbatt {
+		compatible = "zmk,battery-voltage-divider";
+		label = "BATTERY";
+		io-channels = <&adc 7>;
+		output-ohms = <2000000>;
+		full-ohms = <(2000000 + 806000)>;
+	};
+};
+
+&adc {
+	status = "okay";
+};
+
+&gpio0 {
+	status = "okay";
+};
+
+&gpio1 {
+	status = "okay";
+};
+
+&usbd {
+	status = "okay";
+	cdc_acm_uart: cdc_acm_uart {
+		compatible = "zephyr,cdc-acm-uart";
+		label = "CDC_ACM_0";
+	};
+};
+
+&uart0 {
+	compatible = "nordic,nrf-uarte";
+	tx-pin = <6>;
+	rx-pin = <8>;
+};
+
+&spi1 {
+  compatible = "nordic,nrf-spim";
+  status = "okay";
+  // WS2812B pinout (PX.Y = 32*X+Y)
+  mosi-pin = <31>;
+  // Unused pins, needed for SPI definition, but not used by the ws2812 driver itself.
+  sck-pin = <6>;
+  miso-pin = <8>;
+
+  led_strip: ws2812@0 {
+    compatible = "worldsemi,ws2812-spi";
+    label = "WS2812";
+
+    /* SPI */
+    reg = <0>; /* ignored, but necessary for SPI bindings */
+    spi-max-frequency = <4000000>;
+
+    /* WS2812 */
+    chain-length = <9>; /* number of LEDs */
+    spi-one-frame = <0x70>;
+    spi-zero-frame = <0x40>;
+    color-mapping = <LED_COLOR_ID_GREEN
+                     LED_COLOR_ID_RED
+                     LED_COLOR_ID_BLUE>;
+  };
+};
+
+&i2c0 {
+	compatible = "nordic,nrf-twi";
+	sda-pin = <15>;
+	scl-pin = <17>;
+	status = "okay";
+
+    oled: ssd1306@3c {
+		compatible = "solomon,ssd1306fb";
+		reg = <0x3c>;
+		label = "DISPLAY";
+		width = <128>;
+		height = <32>;
+		segment-offset = <0>;
+		page-offset = <0>;
+		display-offset = <0>;
+		multiplex-ratio = <31>;
+		segment-remap;
+		com-invdir;
+		com-sequential;
+		prechargep = <0x22>;
+	};
+};
+
+&flash0 {
+	/*
+	 * For more information, see:
+	 * http://docs.zephyrproject.org/latest/devices/dts/flash_partitions.html
+	 */
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		sd_partition: partition@0 {
+			label = "mbr";
+			reg = <0x00000000 0x00001000>;
+		};
+
+		code_partition: partition@1000 {
+			label = "code_partition";
+			reg = <0x00001000 0x000d3000>;
+		};
+
+		/*
+		 * The flash starting at 0x000d4000 and ending at
+		 * 0x000f3fff is reserved for use by the application.
+		 */
+
+		/*
+		 * Storage partition will be used by FCB/LittleFS/NVS
+		 * if enabled.
+		 */
+		storage_partition: partition@d4000 {
+			label = "storage";
+			reg = <0x000d4000 0x00020000>;
+		};
+
+		boot_partition: partition@f4000 {
+			label = "adafruit_boot";
+			reg = <0x000f4000 0x0000c000>;
+		};
+	};
+};
